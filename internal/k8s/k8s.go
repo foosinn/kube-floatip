@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	"k8s.io/client-go/transport"
 )
 
 type (
@@ -30,7 +29,6 @@ func RunLeaderElection(ctx context.Context, config *config.Config, leading Start
 	if err != nil {
 		return fmt.Errorf("unable to load inclusterconfig: %s", err)
 	}
-	cfg.Wrap(transport.ContextCanceller(ctx, fmt.Errorf("the leader is shutting down")))
 	client := kubernetes.NewForConfigOrDie(cfg)
 
 	lock := &resourcelock.LeaseLock{

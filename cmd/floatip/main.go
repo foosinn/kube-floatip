@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/foosinn/kube-floatip/internal/config"
 	"github.com/foosinn/kube-floatip/internal/k8s"
@@ -33,20 +32,17 @@ func main() {
 		ctx,
 		cfg,
 		func(ctx context.Context) {
-			for {
-				select {
-				case <-time.After(time.Second):
-					klog.Infof("%s: I am still the leader", cfg.Id)
-				case <-ctx.Done():
-					klog.Infof("s%: No more leader", cfg.Id)
-					break
-				}
-			}
+			klog.Infof("%s: I am the leader", cfg.Id)
+			<-ctx.Done()
+			klog.Infof("%s: No more leader", cfg.Id)
 
 		},
 		func() {
-			klog.Infof("%s: stopping")
+			klog.Infof("%s: stopping", cfg.Id)
 		},
-		func(string) {},
+		func(i string) {
+			klog.Infof("%s: new leader is %s", cfg.Id, i)
+		},
 	)
+
 }
