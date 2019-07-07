@@ -11,46 +11,103 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/client-go/tools/cache"
+
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/util/workqueue"
+	listerv1 "k8s.io/client-go/listers/core/v1"
 )
 
 type (
 	StartLeadingFunc func(context.Context)
-	StopLeadingFunc func()
-	NewLeaderFunc func(string)
+	StopLeadingFunc  func()
+	NewLeaderFunc    func(string)
 
+	K8s struct {
+		client *kubernetes.Clientset
+		config *config.Config
+		queue workqueue.RateLimitingInterface
+		lister listerv1.NodeLister
+		informer cache.Controller
+	}
 )
 
-func RunLeaderElection(ctx context.Context, config *config.Config, leading StartLeadingFunc,
-	stopping StopLeadingFunc, new NewLeaderFunc) (err error) {
-
+func New(config *config.Config) (k *K8s, err error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		return fmt.Errorf("unable to load inclusterconfig: %s", err)
+		return nil, fmt.Errorf("unable to load inclusterconfig: %s", err)
 	}
-	client := kubernetes.NewForConfigOrDie(cfg)
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to kubernetes: %s", err)
+	}
 
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	indexer, informer := cache.NewIndexerInformer(
+		cache.NewListWatchFromClient(client.RESTClient(), "nodes", v1.NamespaceAll, fields.Everything()),
+		&v1.Node{},
+		10*time.Second,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				queueAppend(obj, queue)
+			},
+			UpdateFunc: func(old, new interface{}) {
+				queueAppend(new, queue)
+			},
+			DeleteFunc: func(obj interface{}) {
+				queueAppend(obj, queue)
+			},
+		},
+		cache.Indexers{},
+	)
+	lister := listerv1.NewNodeLister(indexer)
+
+	k = &K8s{
+		client: client,
+		config: config,
+		queue: queue,
+		lister: lister,
+		informer: informer,
+	}
+	return
+}
+
+func queueAppend(obj interface{}, queue workqueue.RateLimitingInterface) {
+	if key, err := cache.MetaNamespaceKeyFunc(obj); err == nil {
+		queue.Add(key)
+	}
+}
+
+func (k *K8s) RunLeaderElection(ctx context.Context, leading StartLeadingFunc, stopping StopLeadingFunc, new NewLeaderFunc) (err error) {
 	lock, err := resourcelock.New(
 		resourcelock.ConfigMapsResourceLock,
-		config.Namespace,
-		config.Name,
-		client.CoreV1(),
-		client.CoordinationV1(),
+		k.config.Namespace,
+		k.config.Name,
+		k.client.CoreV1(),
+		k.client.CoordinationV1(),
 		resourcelock.ResourceLockConfig{
-			Identity: config.Id,
+			Identity: k.config.Id,
 		},
 	)
 	lec := leaderelection.LeaderElectionConfig{
-		Lock: lock,
+		Lock:            lock,
 		ReleaseOnCancel: true,
-		LeaseDuration: 60 * time.Second,
-		RenewDeadline: 15 * time.Second,
-		RetryPeriod: 5 * time.Second,
+		LeaseDuration:   60 * time.Second,
+		RenewDeadline:   15 * time.Second,
+		RetryPeriod:     5 * time.Second,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: leading,
 			OnStoppedLeading: stopping,
-			OnNewLeader: new,
+			OnNewLeader:      new,
 		},
 	}
 	leaderelection.RunOrDie(ctx, lec)
 	return
+}
+
+func (k *K8s) GetNodeAnnotations(node string) {
+	k.client.CoreV1().Nodes().Get(k.config.Id, metav1.GetOptions{})
+
 }

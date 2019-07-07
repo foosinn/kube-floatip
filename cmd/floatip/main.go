@@ -28,9 +28,13 @@ func main() {
 		cancel()
 	}()
 
-	k8s.RunLeaderElection(
+	k, err := k8s.New(cfg)
+	if err != nil {
+		klog.Fatal(err)
+	}
+f
+	k.RunLeaderElection(
 		ctx,
-		cfg,
 		func(ctx context.Context) {
 			klog.Infof("%s: I am the leader", cfg.Id)
 			<-ctx.Done()
@@ -44,5 +48,4 @@ func main() {
 			klog.Infof("%s: new leader is %s", cfg.Id, i)
 		},
 	)
-
 }
