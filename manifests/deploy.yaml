@@ -34,15 +34,14 @@ subjects:
 - kind: ServiceAccount
   name: floatip
 ---
-apiVersion: apps/v1beta1
-kind: Deployment
+apiVersion: extensions/v1beta1
+kind: DaemonSet
 metadata:
   name: test
   namespace: hetzner-cloud
   labels:
     app: testapp
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app: testapp
