@@ -3,12 +3,10 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/foosinn/kube-floatip/internal/config"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
@@ -32,7 +30,7 @@ func RunLeaderElection(ctx context.Context, config *config.Config, leading Start
 	client := kubernetes.NewForConfigOrDie(cfg)
 
 	lock, err := resourcelock.New(
-		resourcelock.LeasesResourceLock,
+		resourcelock.ConfigMapsResourceLock,
 		config.Namespace,
 		config.Name,
 		client.CoreV1(),
@@ -54,10 +52,5 @@ func RunLeaderElection(ctx context.Context, config *config.Config, leading Start
 		},
 	}
 	leaderelection.RunOrDie(ctx, lec)
-
-	_, err = client.CoordinationV1().Leases(config.Namespace).Get(config.Name, metav1.GetOptions{})
-	if err == nil || !strings.Contains(err.Error(), "the leader is shutting down") {
-		return fmt.Errorf("expected an error when checking lease: %+v", err)
-	}
 	return
 }
