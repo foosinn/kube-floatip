@@ -31,16 +31,16 @@ func RunLeaderElection(ctx context.Context, config *config.Config, leading Start
 	}
 	client := kubernetes.NewForConfigOrDie(cfg)
 
-	lock := &resourcelock.LeaseLock{
-		LeaseMeta: metav1.ObjectMeta{
-			Name: config.Name,
-			Namespace: config.Namespace,
-		},
-		Client: client.CoordinationV1(),
-		LockConfig: resourcelock.ResourceLockConfig{
+	lock, err := resourcelock.New(
+		resourcelock.LeasesResourceLock,
+		config.Namespace,
+		config.Name,
+		client.CoreV1(),
+		client.CoordinationV1(),
+		resourcelock.ResourceLockConfig{
 			Identity: config.Id,
 		},
-	}
+	)
 	lec := leaderelection.LeaderElectionConfig{
 		Lock: lock,
 		ReleaseOnCancel: true,
