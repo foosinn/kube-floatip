@@ -14,6 +14,9 @@ type Config struct {
 
 	// Name is used as leaderelection namespace
 	Namespace string
+
+        // NodeName is the node the pod is running on
+        NodeName string
 }
 
 // Create parses environment variables and returns a configuration

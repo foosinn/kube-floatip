@@ -9,15 +9,15 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/util/workqueue"
 	listerv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type (
@@ -26,10 +26,10 @@ type (
 	NewLeaderFunc    func(string)
 
 	K8s struct {
-		client *kubernetes.Clientset
-		config *config.Config
-		queue workqueue.RateLimitingInterface
-		lister listerv1.NodeLister
+		client   *kubernetes.Clientset
+		config   *config.Config
+		queue    workqueue.RateLimitingInterface
+		lister   listerv1.NodeLister
 		informer cache.Controller
 	}
 )
@@ -65,16 +65,16 @@ func New(config *config.Config) (k *K8s, err error) {
 	lister := listerv1.NewNodeLister(indexer)
 
 	k = &K8s{
-		client: client,
-		config: config,
-		queue: queue,
-		lister: lister,
+		client:   client,
+		config:   config,
+		queue:    queue,
+		lister:   lister,
 		informer: informer,
 	}
 	return
 }
 
-func queueAppend(obj interface{}, queue workqueue.RateLimitingInterface) {
+func queueAppend (obj interface{}, queue workqueue.RateLimitingInterface) {
 	if key, err := cache.MetaNamespaceKeyFunc(obj); err == nil {
 		queue.Add(key)
 	}
@@ -107,7 +107,15 @@ func (k *K8s) RunLeaderElection(ctx context.Context, leading StartLeadingFunc, s
 	return
 }
 
-func (k *K8s) GetNodeAnnotations(node string) {
+func (k *K8s) GetNodeAnnotation(node string, annotation string) (value string, err error) {
+	n, err := k.lister.Get(node)
+	if err != nil {
+		return "", fmt.Errorf("unable to get annotation: %s", err)
+	}
+	value, ok := n.GetAnnotations()[annotation]
+	if !ok {
+		return "", fmt.Errorf("annotation not found")
+	}
 	k.client.CoreV1().Nodes().Get(k.config.Id, metav1.GetOptions{})
-
+        return
 }

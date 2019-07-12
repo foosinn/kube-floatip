@@ -32,7 +32,6 @@ func main() {
 	if err != nil {
 		klog.Fatal(err)
 	}
-f
 	k.RunLeaderElection(
 		ctx,
 		func(ctx context.Context) {
