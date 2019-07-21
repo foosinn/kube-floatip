@@ -2,27 +2,28 @@ package config
 
 import (
 	"github.com/kelseyhightower/envconfig"
-	"k8s.io/klog"
 )
 
 type Config struct {
-	// Id is used for the identifier in leaderelection
-	Id string
-
-	// Name is used as leaderelection name
-	Name string `defaut:"floatip"`
-
 	// Name is used as leaderelection namespace
-	Namespace string
+	Namespace string `required:"true"`
 
         // NodeName is the node the pod is running on
-        NodeName string
+        NodeName string `required:"true"`
+
+	// Provider is the provide for floating ip
+	Provider string `required:"true"`
+
+	// ProviderToken is used to login to the provider
+	ProviderToken string `required:"true"`
+
+	// ProviderIPs is a list of floating ip ids
+	ProviderIPs []int `required:"true"`
 }
 
 // Create parses environment variables and returns a configuration
-func Create() (c *Config) {
+func Create() (c *Config, err error) {
 	c = &Config{}
-	envconfig.Process("floatip", c)
-	klog.Infof("config loaded: %+v", c)
+	err = envconfig.Process("floatip", c)
 	return
 }
