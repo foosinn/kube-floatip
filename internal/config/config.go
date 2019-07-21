@@ -19,6 +19,9 @@ type Config struct {
 
 	// ProviderIPs is a list of floating ip ids
 	ProviderIPs []int `required:"true"`
+
+	// Link to bind the IPs
+	Link string `required:"true"`
 }
 
 // Create parses environment variables and returns a configuration

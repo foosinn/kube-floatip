@@ -41,12 +41,16 @@ func NewHCloud(ipID int, c *config.Config) (*HCloud, error) {
 	}, nil
 }
 
-func (h *HCloud) Bind(ctx context.Context) (err error) {
+func (h *HCloud) Bind() (err error) {
+	ctx := context.Background()
 	_, _, err = h.client.FloatingIP.Assign(ctx, h.ip, h.server)
 	if err != nil {
 		return fmt.Errorf("unable to bind ip: %s", err)
 	}
-	<-ctx.Done()
+	return nil
+}
+
+func (h *HCloud) Unbind() (err error) {
 	return nil
 }
 

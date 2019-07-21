@@ -5,9 +5,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"net"
+	"fmt"
 
 	"github.com/foosinn/kube-floatip/internal/config"
 	"github.com/foosinn/kube-floatip/internal/floatip"
+	"github.com/foosinn/kube-floatip/internal/ip"
 	"github.com/foosinn/kube-floatip/internal/k8s"
 
 	"k8s.io/klog"
@@ -54,33 +57,49 @@ func provide(ctx context.Context, k *k8s.K8s, cfg *config.Config, ipID int) (err
 		klog.Fatal(err)
 	}
 
-	var leaderCtx context.Context
-	var leaderCancel context.CancelFunc
+	ipcidr := fmt.Sprintf("%s/32", fip.String())
+	if net.ParseIP(fip.String()).To4() == nil {
+		ipcidr = fmt.Sprintf("%s/128", fip.String())
+	}
+	linkIp, err := ip.NewIP(ipcidr, cfg.Link)
+
 	err = k.RunLeaderElection(
 		ctx,
                 cfg.NodeName,
                 fip.DnsName(),
 		k8s.K8sLeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				leaderCtx, leaderCancel = context.WithCancel(ctx)
-				defer leaderCancel()
 				klog.Infof("%s: i am leader for '%s'", cfg.NodeName, fip.String())
-				err := fip.Bind(leaderCtx)
+				err := linkIp.Bind()
 				if err != nil {
 					klog.Error(err)
-					klog.Fatalf("%s: unable to bind ip, killing myself", cfg.NodeName)
+					klog.Fatalf("%s: unable to bind ip from link, killing myself", cfg.NodeName)
 				}
+				err = fip.Bind()
+				if err != nil {
+					klog.Error(err)
+					klog.Fatalf("%s: unable to bind ip from provider, killing myself", cfg.NodeName)
+				}
+				<-ctx.Done()
 				klog.Infof("%s: no more leader", cfg.NodeName)
 			},
 			OnStoppedLeading: func() {
-				if leaderCancel == nil {
-					klog.Fatalf("%s: cancel function is not set, stopping", cfg.NodeName)
+				err := fip.Bind()
+				if err != nil {
+					klog.Error(err)
+					klog.Fatalf("%s: unable to unbind ip from provider, killing myself", cfg.NodeName)
+				}
+				err = linkIp.Bind()
+				if err != nil {
+					klog.Error(err)
+					klog.Fatalf("%s: unable to unbind ip from link, killing myself", cfg.NodeName)
 				}
 				klog.Infof("%s: removing ips", cfg.NodeName)
-				leaderCancel()
 			},
 			OnNewLeader: func(i string) {
-				klog.Infof("%s: new leader for %s is %s", cfg.NodeName, fip.String(), i)
+				if i != cfg.NodeName {
+					klog.Infof("%s: new leader for %s is %s", cfg.NodeName, fip.String(), i)
+				}
 			},
 		},
 	)

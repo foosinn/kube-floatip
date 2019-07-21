@@ -1,14 +1,14 @@
 package floatip
 
 import (
-	"context"
 	"github.com/foosinn/kube-floatip/internal/config"
 )
 
 type (
 	// Floatip is an interface to assing floating ips
 	FloatIP interface {
-		Bind(context.Context) (error)
+		Bind() (error)
+		Unbind() (error)
 		DnsName() string
                 String() string
 	}
