@@ -1,31 +1,31 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: hetzner-cloud
+  name: floatip
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: floatip
-  namespace: hetzner-cloud
+  namespace: floatip
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: floatip
-  namespace: hetzner-cloud
+  namespace: floatip
 rules:
 - apiGroups:
   - ""
   resources:
   - configmaps
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  verbs: ["*"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: floatip
-  namespace: hetzner-cloud
+  namespace: floatip
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -38,40 +38,43 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: test
-  namespace: hetzner-cloud
+  namespace: floatip
   labels:
     app: testapp
 spec:
   selector:
     matchLabels:
-      app: testapp
+      app: floatip
   template:
     metadata:
       labels:
-        app: testapp
+        app: floatip
     spec:
       serviceAccount: floatip
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
       containers:
         - name: floatip
           image: foosinn/floatip
           imagePullPolicy: Always
           env:
-          - name: FLOATIP_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: FLOATIP_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
           - name: FLOATIP_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: FLOADIP_NODENAME
+          - name: FLOATIP_NODENAME
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+          - name: FLOATIP_PROVIDER
+            value: hcloud
+          - name: FLOATIP_PROVIDERTOKEN
+            value: mGEKIv60xEv4ZNYBBdsbxUUKqr0lhH9Nzu8PVdF3kpZbjZBsdbptDBadvGhZlLA3
+          - name: FLOATIP_PROVIDERIPS
+            value: 81968,81969
           resources:
             requests:
               cpu: 10m
